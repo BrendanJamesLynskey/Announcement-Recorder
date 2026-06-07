@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Announcement Recorder — Welsham Railway</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800;900&family=Roboto+Mono&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:#0a1424;color:#cfe6f7;font-family:'Roboto Mono',monospace;line-height:1.5;}
+#app{max-width:880px;margin:0 auto;padding:1.4rem 1.2rem 4rem;}
+h1{font-family:'Orbitron',sans-serif;font-size:1.5rem;font-weight:900;color:#5cc8ff;letter-spacing:0.16em;text-shadow:0 0 14px rgba(92,200,255,0.4);text-align:center;margin-bottom:0.4em;}
+.sub{font-size:0.7rem;color:rgba(180,210,235,0.55);letter-spacing:0.3em;text-transform:uppercase;text-align:center;margin-bottom:1.6rem;}
+section{background:rgba(14,28,46,0.65);border:1px solid rgba(92,200,255,0.18);border-radius:6px;padding:1.0rem 1.1rem;margin-bottom:1.0rem;}
+section h2{font-family:'Orbitron',sans-serif;font-size:0.78rem;font-weight:700;color:#9ccfff;letter-spacing:0.22em;margin-bottom:0.7rem;text-transform:uppercase;}
+.row{display:flex;gap:0.8rem;flex-wrap:wrap;align-items:center;margin-bottom:0.7rem;}
+.row > label{display:flex;align-items:center;gap:0.5rem;font-size:0.72rem;letter-spacing:0.12em;color:rgba(180,210,235,0.75);text-transform:uppercase;}
+.row > label > .field{display:flex;align-items:center;}
+select,input[type="text"],textarea{background:rgba(8,18,32,0.85);border:1px solid rgba(92,200,255,0.32);color:#cfe6f7;font-family:'Roboto Mono',monospace;font-size:0.85rem;padding:0.5rem 0.6rem;border-radius:3px;min-width:200px;}
+select:focus,input[type="text"]:focus,textarea:focus{outline:none;border-color:#9ccfff;}
+textarea{width:100%;min-height:96px;line-height:1.5;}
+.script{background:rgba(8,16,28,0.7);border-left:3px solid #ffaa30;padding:0.85rem 1rem;font-size:0.95rem;color:#ffd060;font-family:'Roboto Mono',monospace;line-height:1.7;}
+.controls{display:flex;gap:0.6rem;flex-wrap:wrap;margin-top:0.4rem;}
+button{background:rgba(14,28,46,0.85);border:1px solid rgba(92,200,255,0.4);color:#cfe6f7;font-family:'Orbitron',sans-serif;font-size:0.78rem;padding:0.65rem 1.1rem;cursor:pointer;letter-spacing:0.2em;text-transform:uppercase;font-weight:700;transition:all 0.15s;border-radius:3px;}
+button:hover:not(:disabled){background:rgba(28,52,82,0.95);border-color:#9ccfff;color:#fff;}
+button:disabled{opacity:0.4;cursor:not-allowed;}
+button.primary{background:linear-gradient(180deg,rgba(92,200,255,0.32),rgba(92,200,255,0.1));border-color:#9ccfff;}
+button.rec{background:linear-gradient(180deg,rgba(255,70,70,0.32),rgba(255,70,70,0.1));border-color:#ff7060;color:#ffbab0;}
+button.rec.active{background:#ff4848;color:#fff;border-color:#ff8a78;animation:pulse 1.4s ease-in-out infinite;}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(255,80,80,0.5);}50%{box-shadow:0 0 0 8px rgba(255,80,80,0);}}
+#status{font-family:'Roboto Mono',monospace;font-size:0.7rem;color:rgba(180,210,235,0.55);letter-spacing:0.18em;text-transform:uppercase;margin-left:auto;padding-top:0.35rem;}
+#status.ok{color:#9cff9c;}
+#status.rec{color:#ff8a78;}
+#status.err{color:#ff8a78;}
+#recordings{list-style:none;}
+#recordings li{display:flex;align-items:center;gap:0.7rem;padding:0.55rem 0;border-bottom:1px dashed rgba(92,200,255,0.12);font-size:0.78rem;}
+#recordings li:last-child{border-bottom:0;}
+#recordings .name{flex:1;color:#cfe6f7;font-family:'Roboto Mono',monospace;}
+#recordings .meta{color:rgba(180,210,235,0.45);font-size:0.66rem;}
+#recordings button{padding:0.3rem 0.6rem;font-size:0.62rem;letter-spacing:0.14em;}
+#recordings .del{border-color:rgba(255,128,96,0.4);color:#ffb09c;}
+#recordings .del:hover{background:rgba(80,28,20,0.7);}
+.hint{font-size:0.65rem;color:rgba(180,210,235,0.5);letter-spacing:0.08em;margin-top:0.4rem;}
+.footer{text-align:center;font-size:0.62rem;color:rgba(180,210,235,0.35);letter-spacing:0.16em;margin-top:1.6rem;}
+.footer a{color:rgba(180,210,235,0.55);text-decoration:none;}
+.footer a:hover{color:#9ccfff;}
+/* Password gate — shown until the correct passphrase is entered. This is a
+   client-side gate only (the page is static HTML), so it keeps casual visitors
+   out, not a determined one who reads the source. See README. */
+#gate{position:fixed;inset:0;z-index:1000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.1rem;background:radial-gradient(circle at 50% 38%,rgba(18,40,66,0.96),rgba(6,12,22,0.98));padding:1.5rem;}
+#gate h1{margin-bottom:0;}
+#gate .sub{margin-bottom:0.4rem;}
+#gate .gateBox{display:flex;flex-direction:column;gap:0.8rem;align-items:stretch;width:min(320px,90vw);}
+#gate input[type="password"]{text-align:center;letter-spacing:0.3em;font-size:1rem;min-width:0;}
+#gate button{width:100%;}
+#gateErr{font-size:0.68rem;color:#ff8a78;letter-spacing:0.16em;text-transform:uppercase;text-align:center;min-height:1em;}
+</style>
+</head>
+<body>
+<div id="gate">
+  <h1>WELSHAM RAILWAY</h1>
+  <div class="sub">Announcement Recorder</div>
+  <form id="gateForm" class="gateBox" autocomplete="off">
+    <input id="gatePass" type="password" placeholder="PASSWORD" autofocus aria-label="Password">
+    <button type="submit" class="primary">Enter</button>
+    <div id="gateErr"></div>
+  </form>
+</div>
+
+<div id="app" style="display:none;">
+  <h1>WELSHAM RAILWAY</h1>
+  <div class="sub">Announcement Recorder</div>
+
+  <section>
+    <h2>Message</h2>
+    <div class="row">
+      <label>Type
+        <select id="msgType"></select>
+      </label>
+      <label>Station
+        <select id="stationName"></select>
+      </label>
+    </div>
+    <div id="scriptBox" class="script">—</div>
+    <p class="hint">Pick a message type. The station dropdown is only used by templates that mention a station name. Switch to "Custom" if you want to type your own script.</p>
+    <div id="customWrap" style="display:none;margin-top:0.6rem;">
+      <textarea id="customText" placeholder="Type your own announcement here…"></textarea>
+    </div>
+  </section>
+
+  <section>
+    <h2>Capture</h2>
+    <div class="controls">
+      <button id="recordBtn" class="rec">● Record</button>
+      <button id="stopBtn" disabled>■ Stop</button>
+      <button id="playBtn" disabled>▶ Preview</button>
+      <button id="saveBtn" class="primary" disabled>↓ Save .webm</button>
+      <span id="status">Ready — click Record to start</span>
+    </div>
+    <p class="hint">First click of Record will ask for microphone permission. Files are downloaded with a descriptive name (e.g. <code>next-station-bankside.webm</code>) — drop them into the sim's audio folder or load them via the browser's file picker. WebM (Opus) plays in every modern browser; convert to WAV externally with ffmpeg if your target needs PCM.</p>
+  </section>
+
+  <section>
+    <h2>Saved this session</h2>
+    <ul id="recordings"><li class="meta">(none yet)</li></ul>
+    <p class="hint">Recordings are kept in this browser tab only — saving downloads a file to disk. Reloading the page clears the list.</p>
+  </section>
+
+  <div class="footer">
+    <a href="https://brendanjameslynskey.github.io/Welsham-Railway/">← Welsham Railway sim</a> · <a href="https://github.com/BrendanJamesLynskey/Announcement-Recorder" target="_blank" rel="noopener">repo</a>
+  </div>
+</div>
+
+<script>
+'use strict';
+// ============================================================
+// PASSWORD GATE
+// Client-side only — the passphrase lives in this static file, so this
+// keeps casual visitors out rather than providing real access control.
+// A correct entry is remembered for the tab session so a reload inside
+// the same tab doesn't re-prompt.
+// ============================================================
+(function(){
+  const PASSPHRASE = 'silkiehonker';
+  const gate = document.getElementById('gate');
+  const app = document.getElementById('app');
+  const form = document.getElementById('gateForm');
+  const pass = document.getElementById('gatePass');
+  const err = document.getElementById('gateErr');
+  function unlock(){
+    gate.style.display = 'none';
+    app.style.display = '';
+    try { sessionStorage.setItem('ar-unlocked', '1'); } catch (e) {}
+  }
+  let alreadyIn = false;
+  try { alreadyIn = sessionStorage.getItem('ar-unlocked') === '1'; } catch (e) {}
+  if (alreadyIn){ unlock(); }
+  else { setTimeout(() => pass.focus(), 50); }
+  form.addEventListener('submit', e => {
+    e.preventDefault();
+    if (pass.value === PASSPHRASE){ err.textContent = ''; unlock(); }
+    else { err.textContent = 'Incorrect password'; pass.value = ''; pass.focus(); }
+  });
+})();
+
+// ============================================================
+// MESSAGE TEMPLATES — each entry yields a string to read aloud.
+// Templates that take a station name interpolate it via the
+// stations dropdown; templates that don't ignore the argument.
+// ============================================================
+const TEMPLATES = {
+  'next-station':        { label: 'Next station',           text: s => `The next station is ${s}. Please mind the gap between the train and the platform when alighting.` },
+  'arriving':            { label: 'Arriving at',            text: s => `We are now approaching ${s}. Please prepare to alight.` },
+  'final-stop':          { label: 'Final stop',             text: s => `This is ${s}, where this train terminates. All change please, all change. Please take all your belongings with you when leaving the train.` },
+  'welcome':             { label: 'Welcome',                text: s => `Welcome aboard this Welsham Railway service to ${s}. We will shortly be on our way. Please ensure all luggage is stowed safely.` },
+  'doors-closing':       { label: 'Doors closing',          text: _ => `Stand clear of the doors. Doors are closing.` },
+  'doors-released':      { label: 'Doors released',         text: s => `Doors are now released at ${s}. Please take care when alighting.` },
+  'delay':               { label: 'Apology for delay',      text: _ => `We are sorry for the delay to this service, caused by signalling problems further down the line. Network Rail and Welsham Railway apologise for the inconvenience this is causing to your journey.` },
+  'security-belongings': { label: 'Security: belongings',   text: _ => `For your safety and security, please keep all personal belongings with you at all times. Please do not leave bags or other items unattended on the train or on the platform.` },
+  'security-suspicious': { label: 'Security: suspicious',   text: _ => `If you see anything that looks suspicious, please report it to a member of staff or to the British Transport Police by texting six one zero one six. We see it, say it, sorted.` },
+  'security-alarm':      { label: 'Security: alarm',        text: _ => `In an emergency, please use the passenger emergency alarm or contact a member of train staff. The emergency alarm should not be used unless absolutely necessary, as it will stop the train and delay your journey.` },
+  'next-this-is':        { label: 'This is / next is',      text: s => `This is ${s}. The next station is the next one on your service. Please change here for connections.` },
+  'custom':              { label: 'Custom — type below',    text: _ => '' },
+};
+
+// ============================================================
+// STATIONS — loaded from welsham-circle.json so the dropdown
+// always matches the bundled map. Falls back to a hard-coded
+// list if the fetch fails (e.g. offline).
+// ============================================================
+const FALLBACK_STATIONS = ['Welsham Central', 'Welsham Jn', 'Silkie Street', 'Bankside', 'Welsham UFC', 'Welsham St Peters', 'Central Market'];
+async function loadStations(){
+  try {
+    const r = await fetch('welsham-circle.json');
+    if (!r.ok) throw new Error('fetch failed');
+    const j = await r.json();
+    // Map names with title-case for a nicer dropdown — the JSON has them
+    // in mixed case ("welsham jn" / "Welsham Central") so we normalise.
+    const titleCase = n => String(n).split(/\s+/).map(w => w[0].toUpperCase() + w.slice(1)).join(' ');
+    return [...new Set((j.stations || []).map(s => titleCase(s.name)))];
+  } catch (e){
+    return FALLBACK_STATIONS;
+  }
+}
+
+// ============================================================
+// DOM wiring
+// ============================================================
+const $ = id => document.getElementById(id);
+const typeEl = $('msgType');
+const stnEl = $('stationName');
+const scriptEl = $('scriptBox');
+const customWrap = $('customWrap');
+const customText = $('customText');
+const recordBtn = $('recordBtn');
+const stopBtn = $('stopBtn');
+const playBtn = $('playBtn');
+const saveBtn = $('saveBtn');
+const statusEl = $('status');
+const recordingsEl = $('recordings');
+
+for (const key of Object.keys(TEMPLATES)){
+  const o = document.createElement('option');
+  o.value = key; o.textContent = TEMPLATES[key].label;
+  typeEl.appendChild(o);
+}
+
+let stationList = FALLBACK_STATIONS;
+function populateStations(list){
+  stnEl.innerHTML = '';
+  for (const name of list){
+    const o = document.createElement('option');
+    o.value = name; o.textContent = name;
+    stnEl.appendChild(o);
+  }
+}
+populateStations(stationList);
+loadStations().then(list => { stationList = list; populateStations(list); refreshScript(); });
+
+function currentScript(){
+  const t = TEMPLATES[typeEl.value];
+  const station = stnEl.value || stationList[0];
+  if (typeEl.value === 'custom') return (customText.value || '').trim();
+  return t.text(station);
+}
+function refreshScript(){
+  const text = currentScript();
+  scriptEl.textContent = text || '—';
+  customWrap.style.display = typeEl.value === 'custom' ? 'block' : 'none';
+}
+typeEl.addEventListener('change', refreshScript);
+stnEl.addEventListener('change', refreshScript);
+customText.addEventListener('input', refreshScript);
+refreshScript();
+
+// ============================================================
+// MediaRecorder
+// ============================================================
+let mediaRecorder = null;
+let recordedChunks = [];
+let recordedBlob = null;
+let recordedUrl = null;
+
+function setStatus(text, cls){
+  statusEl.textContent = text;
+  statusEl.className = cls || '';
+}
+
+async function startRecording(){
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+    const mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+      ? 'audio/webm;codecs=opus'
+      : (MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : '');
+    mediaRecorder = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+    recordedChunks = [];
+    if (recordedUrl){ URL.revokeObjectURL(recordedUrl); recordedUrl = null; }
+    recordedBlob = null;
+    mediaRecorder.ondataavailable = e => { if (e.data && e.data.size > 0) recordedChunks.push(e.data); };
+    mediaRecorder.onstop = () => {
+      const type = mediaRecorder.mimeType || 'audio/webm';
+      recordedBlob = new Blob(recordedChunks, { type });
+      recordedUrl = URL.createObjectURL(recordedBlob);
+      playBtn.disabled = false;
+      saveBtn.disabled = false;
+      setStatus(`Recorded ${(recordedBlob.size / 1024).toFixed(1)} kB — preview or save`, 'ok');
+      mediaRecorder.stream.getTracks().forEach(t => t.stop());
+    };
+    mediaRecorder.start();
+    recordBtn.classList.add('active');
+    recordBtn.disabled = true;
+    stopBtn.disabled = false;
+    playBtn.disabled = true;
+    saveBtn.disabled = true;
+    setStatus('Recording… read the script aloud', 'rec');
+  } catch (e){
+    setStatus('Mic access denied — check browser permissions', 'err');
+    console.warn(e);
+  }
+}
+function stopRecording(){
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+  recordBtn.classList.remove('active');
+  recordBtn.disabled = false;
+  stopBtn.disabled = true;
+}
+function previewRecording(){
+  if (!recordedUrl) return;
+  const audio = new Audio(recordedUrl);
+  audio.play();
+}
+function saveRecording(){
+  if (!recordedBlob) return;
+  const ext = (recordedBlob.type && recordedBlob.type.includes('webm')) ? 'webm' : 'audio';
+  const slug = filenameSlug();
+  const a = document.createElement('a');
+  a.href = recordedUrl;
+  a.download = `${slug}.${ext}`;
+  document.body.appendChild(a); a.click(); a.remove();
+  appendToSession(slug, ext, recordedBlob.size, recordedUrl);
+  setStatus('Saved ' + a.download, 'ok');
+}
+
+function filenameSlug(){
+  const t = typeEl.value;
+  const usesStn = TEMPLATES[t].text.length > 0 && TEMPLATES[t].text('TEST').includes('TEST');
+  const slug = (n) => String(n).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  if (usesStn) return slug(t) + '-' + slug(stnEl.value || 'station');
+  return slug(t);
+}
+
+let sessionItems = [];
+function appendToSession(slug, ext, size, url){
+  if (sessionItems.length === 0) recordingsEl.innerHTML = '';
+  sessionItems.push({ slug, ext, size, url });
+  const li = document.createElement('li');
+  li.innerHTML = '';
+  const name = document.createElement('span'); name.className = 'name'; name.textContent = `${slug}.${ext}`;
+  const meta = document.createElement('span'); meta.className = 'meta'; meta.textContent = `${(size/1024).toFixed(1)} kB`;
+  const play = document.createElement('button'); play.textContent = '▶';
+  play.addEventListener('click', () => { const a = new Audio(url); a.play(); });
+  const dl = document.createElement('button'); dl.textContent = '↓';
+  dl.addEventListener('click', () => { const a = document.createElement('a'); a.href = url; a.download = `${slug}.${ext}`; document.body.appendChild(a); a.click(); a.remove(); });
+  const del = document.createElement('button'); del.textContent = '✕'; del.className = 'del';
+  del.addEventListener('click', () => { URL.revokeObjectURL(url); li.remove(); if (recordingsEl.children.length === 0) recordingsEl.innerHTML = '<li class="meta">(none yet)</li>'; });
+  li.appendChild(name); li.appendChild(meta); li.appendChild(play); li.appendChild(dl); li.appendChild(del);
+  recordingsEl.appendChild(li);
+}
+
+recordBtn.addEventListener('click', startRecording);
+stopBtn.addEventListener('click', stopRecording);
+playBtn.addEventListener('click', previewRecording);
+saveBtn.addEventListener('click', saveRecording);
+
+// Sanity check — MediaRecorder requires a secure context (HTTPS or
+// localhost) and a browser that exposes navigator.mediaDevices. If
+// either is missing, disable the record button and flag it.
+if (!navigator.mediaDevices || typeof MediaRecorder === 'undefined'){
+  recordBtn.disabled = true;
+  setStatus('MediaRecorder unavailable — open this page over HTTPS or localhost', 'err');
+}
+</script>
+</body>
+</html>
