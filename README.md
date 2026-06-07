@@ -12,8 +12,8 @@ sim, where it previously lived as `recorder.html`.
 ## Access
 
 The recorder is behind a password gate. Enter the passphrase to reach the
-tool; a correct entry is remembered for the browser-tab session so a reload
-doesn't re-prompt.
+tool. The password is required on every visit and every reload — nothing is
+remembered between page loads.
 
 > **Note:** the gate is **client-side only**. Because this is a static page,
 > the passphrase is present in the page source, so the gate keeps casual

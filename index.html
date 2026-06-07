@@ -120,8 +120,8 @@ button.rec.active{background:#ff4848;color:#fff;border-color:#ff8a78;animation:p
 // PASSWORD GATE
 // Client-side only — the passphrase lives in this static file, so this
 // keeps casual visitors out rather than providing real access control.
-// A correct entry is remembered for the tab session so a reload inside
-// the same tab doesn't re-prompt.
+// The password is required on every visit and every reload: nothing is
+// remembered between page loads.
 // ============================================================
 (function(){
   const PASSPHRASE = 'silkiehonker';
@@ -133,12 +133,8 @@ button.rec.active{background:#ff4848;color:#fff;border-color:#ff8a78;animation:p
   function unlock(){
     gate.style.display = 'none';
     app.style.display = '';
-    try { sessionStorage.setItem('ar-unlocked', '1'); } catch (e) {}
   }
-  let alreadyIn = false;
-  try { alreadyIn = sessionStorage.getItem('ar-unlocked') === '1'; } catch (e) {}
-  if (alreadyIn){ unlock(); }
-  else { setTimeout(() => pass.focus(), 50); }
+  setTimeout(() => pass.focus(), 50);
   form.addEventListener('submit', e => {
     e.preventDefault();
     if (pass.value === PASSPHRASE){ err.textContent = ''; unlock(); }
