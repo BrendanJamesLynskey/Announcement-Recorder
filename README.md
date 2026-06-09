@@ -54,6 +54,14 @@ which is often the computer's built-in mic rather than the headset. Device
 names only appear once microphone permission has been granted, so record once
 (or press **Refresh**) to populate the list, then pick your headset.
 
+**Checking it captured:** while recording, a live **input level meter** fills
+as the mic picks up sound — watch it move as you speak to confirm the right
+device is being captured. When you stop, the clip loads into an inline audio
+**player** (with native play/scrub controls and a duration readout) so you can
+listen back before saving; the **Preview** button plays the same clip. If a
+recording comes back silent, the status flags it so you can re-check the mic
+selection.
+
 ## Repo
 
 [BrendanJamesLynskey/Announcement-Recorder](https://github.com/BrendanJamesLynskey/Announcement-Recorder)

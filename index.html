@@ -47,6 +47,12 @@ button.rec.active{background:#ff4848;color:#fff;border-color:#ff8a78;animation:p
 .footer{text-align:center;font-size:0.62rem;color:rgba(180,210,235,0.35);letter-spacing:0.16em;margin-top:1.6rem;}
 .footer a{color:rgba(180,210,235,0.55);text-decoration:none;}
 .footer a:hover{color:#9ccfff;}
+/* Live input level meter — fills as the selected mic picks up sound, so the
+   user can confirm the headset is being captured before/while recording. */
+.meter{height:12px;background:rgba(8,18,32,0.85);border:1px solid rgba(92,200,255,0.32);border-radius:4px;overflow:hidden;margin-top:0.7rem;}
+.meter > #meterBar{height:100%;width:0%;background:linear-gradient(90deg,#5cff9c,#ffd060,#ff6a6a);transition:width 0.05s linear;}
+.meterLabel{font-size:0.62rem;color:rgba(180,210,235,0.5);letter-spacing:0.16em;text-transform:uppercase;margin-top:0.4rem;}
+#player{width:100%;margin-top:0.8rem;}
 /* Password gate — shown until the correct passphrase is entered. This is a
    client-side gate only (the page is static HTML), so it keeps casual visitors
    out, not a determined one who reads the source. See README. */
@@ -109,6 +115,11 @@ button.rec.active{background:#ff4848;color:#fff;border-color:#ff8a78;animation:p
       <button id="saveBtn" class="primary" disabled>↓ Save .webm</button>
       <span id="status">Ready — click Record to start</span>
     </div>
+    <div id="meterWrap" style="display:none;">
+      <div class="meter"><div id="meterBar"></div></div>
+      <div class="meterLabel" id="meterLabel">Input level — speak to check the mic is picking you up</div>
+    </div>
+    <audio id="player" controls style="display:none;"></audio>
     <p class="hint">Pick your input device from the Microphone list — if you have a USB headset connected, select it here so recording uses the headset mic rather than the computer's built-in one. Device names only appear after you grant microphone permission (record once, or hit Refresh). The first click of Record will ask for permission. Files are downloaded with a descriptive name (e.g. <code>platform-arriving-p2-bankside.webm</code>) — drop them into the sim's audio folder or load them via the browser's file picker. WebM (Opus) plays in every modern browser; convert to WAV externally with ffmpeg if your target needs PCM.</p>
   </section>
 
@@ -221,6 +232,10 @@ const statusEl = $('status');
 const recordingsEl = $('recordings');
 const micSelect = $('micSelect');
 const refreshMics = $('refreshMics');
+const meterWrap = $('meterWrap');
+const meterBar = $('meterBar');
+const meterLabel = $('meterLabel');
+const player = $('player');
 
 for (const key of Object.keys(TEMPLATES)){
   const o = document.createElement('option');
@@ -303,10 +318,55 @@ let mediaRecorder = null;
 let recordedChunks = [];
 let recordedBlob = null;
 let recordedUrl = null;
+let recordStartMs = 0;
 
 function setStatus(text, cls){
   statusEl.textContent = text;
   statusEl.className = cls || '';
+}
+
+// ------------------------------------------------------------
+// Live input level meter — reads the mic stream through a WebAudio
+// analyser so the user can see the headset is actually picking up
+// sound while recording. Purely visual; doesn't touch the recording.
+// ------------------------------------------------------------
+let audioCtx = null;
+let analyser = null;
+let meterData = null;
+let meterRaf = 0;
+let peakLevel = 0;
+function startMeter(stream){
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    audioCtx = new Ctx();
+    const src = audioCtx.createMediaStreamSource(stream);
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 512;
+    src.connect(analyser);
+    meterData = new Uint8Array(analyser.fftSize);
+    peakLevel = 0;
+    meterWrap.style.display = 'block';
+    meterLabel.textContent = 'Input level — speak to check the mic is picking you up';
+    const tick = () => {
+      analyser.getByteTimeDomainData(meterData);
+      let sumSq = 0;
+      for (let i = 0; i < meterData.length; i++){ const v = (meterData[i] - 128) / 128; sumSq += v * v; }
+      const rms = Math.sqrt(sumSq / meterData.length);
+      const pct = Math.min(100, Math.round(rms * 240));
+      meterBar.style.width = pct + '%';
+      if (pct > peakLevel) peakLevel = pct;
+      meterRaf = requestAnimationFrame(tick);
+    };
+    tick();
+  } catch (e){ console.warn('level meter unavailable', e); }
+}
+function stopMeter(){
+  if (meterRaf) { cancelAnimationFrame(meterRaf); meterRaf = 0; }
+  meterBar.style.width = '0%';
+  meterWrap.style.display = 'none';
+  if (audioCtx){ try { audioCtx.close(); } catch (e){} audioCtx = null; }
+  analyser = null;
 }
 
 async function startRecording(){
@@ -326,15 +386,30 @@ async function startRecording(){
     recordedBlob = null;
     mediaRecorder.ondataavailable = e => { if (e.data && e.data.size > 0) recordedChunks.push(e.data); };
     mediaRecorder.onstop = () => {
+      stopMeter();
+      const secs = recordStartMs ? (performance.now() - recordStartMs) / 1000 : 0;
       const type = mediaRecorder.mimeType || 'audio/webm';
       recordedBlob = new Blob(recordedChunks, { type });
       recordedUrl = URL.createObjectURL(recordedBlob);
+      // Show the recording in a visible player so the user can confirm and
+      // scrub it, rather than relying on a one-shot, invisible Audio object.
+      player.src = recordedUrl;
+      player.style.display = 'block';
       playBtn.disabled = false;
       saveBtn.disabled = false;
-      setStatus(`Recorded ${(recordedBlob.size / 1024).toFixed(1)} kB — preview or save`, 'ok');
+      const kB = (recordedBlob.size / 1024).toFixed(1);
+      if (recordedBlob.size < 1024 && peakLevel < 4){
+        setStatus(`Recorded ${secs.toFixed(1)}s but almost no sound — check the mic is selected`, 'err');
+      } else {
+        setStatus(`Recorded ${secs.toFixed(1)}s / ${kB} kB — press play below to preview`, 'ok');
+      }
       mediaRecorder.stream.getTracks().forEach(t => t.stop());
     };
+    player.style.display = 'none';
+    player.removeAttribute('src');
+    startMeter(stream);
     mediaRecorder.start();
+    recordStartMs = performance.now();
     recordBtn.classList.add('active');
     recordBtn.disabled = true;
     stopBtn.disabled = false;
@@ -342,6 +417,7 @@ async function startRecording(){
     saveBtn.disabled = true;
     setStatus('Recording… read the script aloud', 'rec');
   } catch (e){
+    stopMeter();
     if (e && (e.name === 'OverconstrainedError' || e.name === 'NotFoundError')){
       setStatus('Selected mic unavailable — pick another or hit Refresh', 'err');
       populateMics();
@@ -359,8 +435,14 @@ function stopRecording(){
 }
 function previewRecording(){
   if (!recordedUrl) return;
-  const audio = new Audio(recordedUrl);
-  audio.play();
+  // Drive the visible player so the user gets native controls and a
+  // duration readout. Surface a failure instead of silently doing nothing.
+  player.play().then(() => {
+    setStatus('Playing back the recording…', 'ok');
+  }).catch(err => {
+    setStatus('Could not play back — use the player controls below', 'err');
+    console.warn('playback failed', err);
+  });
 }
 function saveRecording(){
   if (!recordedBlob) return;
