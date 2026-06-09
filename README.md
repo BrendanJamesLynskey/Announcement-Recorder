@@ -47,6 +47,13 @@ Record click asks for microphone permission. Saved files are named
 descriptively (e.g. `next-station-bankside.webm`); convert to WAV externally
 with `ffmpeg` if your target needs PCM.
 
+**Choosing the microphone:** use the **Microphone** dropdown in the Capture
+section to pick the input device. If a USB headset is connected, select it here
+— otherwise the browser records from the operating system's default input,
+which is often the computer's built-in mic rather than the headset. Device
+names only appear once microphone permission has been granted, so record once
+(or press **Refresh**) to populate the list, then pick your headset.
+
 ## Repo
 
 [BrendanJamesLynskey/Announcement-Recorder](https://github.com/BrendanJamesLynskey/Announcement-Recorder)

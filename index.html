@@ -96,6 +96,12 @@ button.rec.active{background:#ff4848;color:#fff;border-color:#ff8a78;animation:p
 
   <section>
     <h2>Capture</h2>
+    <div class="row">
+      <label>Microphone
+        <select id="micSelect"><option value="">Default microphone</option></select>
+      </label>
+      <button id="refreshMics" type="button">↻ Refresh</button>
+    </div>
     <div class="controls">
       <button id="recordBtn" class="rec">● Record</button>
       <button id="stopBtn" disabled>■ Stop</button>
@@ -103,7 +109,7 @@ button.rec.active{background:#ff4848;color:#fff;border-color:#ff8a78;animation:p
       <button id="saveBtn" class="primary" disabled>↓ Save .webm</button>
       <span id="status">Ready — click Record to start</span>
     </div>
-    <p class="hint">First click of Record will ask for microphone permission. Files are downloaded with a descriptive name (e.g. <code>next-station-bankside.webm</code>) — drop them into the sim's audio folder or load them via the browser's file picker. WebM (Opus) plays in every modern browser; convert to WAV externally with ffmpeg if your target needs PCM.</p>
+    <p class="hint">Pick your input device from the Microphone list — if you have a USB headset connected, select it here so recording uses the headset mic rather than the computer's built-in one. Device names only appear after you grant microphone permission (record once, or hit Refresh). The first click of Record will ask for permission. Files are downloaded with a descriptive name (e.g. <code>platform-arriving-p2-bankside.webm</code>) — drop them into the sim's audio folder or load them via the browser's file picker. WebM (Opus) plays in every modern browser; convert to WAV externally with ffmpeg if your target needs PCM.</p>
   </section>
 
   <section>
@@ -213,6 +219,8 @@ const playBtn = $('playBtn');
 const saveBtn = $('saveBtn');
 const statusEl = $('status');
 const recordingsEl = $('recordings');
+const micSelect = $('micSelect');
+const refreshMics = $('refreshMics');
 
 for (const key of Object.keys(TEMPLATES)){
   const o = document.createElement('option');
@@ -256,6 +264,39 @@ customText.addEventListener('input', refreshScript);
 refreshScript();
 
 // ============================================================
+// MICROPHONE SELECTION
+// getUserMedia with no deviceId grabs the OS default input, which is
+// often the built-in mic even when a USB headset is plugged in. Let the
+// user pick the input device explicitly and pass its deviceId through.
+// Device labels are only exposed after permission is granted, so we
+// re-enumerate once a stream has been obtained and on devicechange.
+// ============================================================
+let selectedMicId = '';
+async function populateMics(){
+  if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const mics = devices.filter(d => d.kind === 'audioinput');
+    const prev = micSelect.value;
+    micSelect.innerHTML = '<option value="">Default microphone</option>';
+    mics.forEach((d, i) => {
+      const o = document.createElement('option');
+      o.value = d.deviceId;
+      o.textContent = d.label || `Microphone ${i + 1}`;
+      micSelect.appendChild(o);
+    });
+    if (prev && mics.some(d => d.deviceId === prev)) micSelect.value = prev;
+    selectedMicId = micSelect.value;
+  } catch (e){ console.warn('enumerateDevices failed', e); }
+}
+micSelect.addEventListener('change', () => { selectedMicId = micSelect.value; });
+refreshMics.addEventListener('click', populateMics);
+if (navigator.mediaDevices){
+  populateMics();
+  if (navigator.mediaDevices.addEventListener) navigator.mediaDevices.addEventListener('devicechange', populateMics);
+}
+
+// ============================================================
 // MediaRecorder
 // ============================================================
 let mediaRecorder = null;
@@ -270,7 +311,12 @@ function setStatus(text, cls){
 
 async function startRecording(){
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+    const audioConstraints = { echoCancellation: true, noiseSuppression: true };
+    if (selectedMicId) audioConstraints.deviceId = { exact: selectedMicId };
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
+    // Now that permission is granted, device labels are available — refresh
+    // the list so the user can see and confirm which mic is in use.
+    populateMics();
     const mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
       ? 'audio/webm;codecs=opus'
       : (MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : '');
@@ -296,7 +342,12 @@ async function startRecording(){
     saveBtn.disabled = true;
     setStatus('Recording… read the script aloud', 'rec');
   } catch (e){
-    setStatus('Mic access denied — check browser permissions', 'err');
+    if (e && (e.name === 'OverconstrainedError' || e.name === 'NotFoundError')){
+      setStatus('Selected mic unavailable — pick another or hit Refresh', 'err');
+      populateMics();
+    } else {
+      setStatus('Mic access denied — check browser permissions', 'err');
+    }
     console.warn(e);
   }
 }
