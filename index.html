@@ -83,9 +83,12 @@ button.rec.active{background:#ff4848;color:#fff;border-color:#ff8a78;animation:p
       <label>Station
         <select id="stationName"></select>
       </label>
+      <label>Platform
+        <select id="platformNum"></select>
+      </label>
     </div>
     <div id="scriptBox" class="script">—</div>
-    <p class="hint">Pick a message type. The station dropdown is only used by templates that mention a station name. Switch to "Custom" if you want to type your own script.</p>
+    <p class="hint">Pick a message type. The station and platform dropdowns are only used by templates that mention them ("On train" and "Platform" announcements). Switch to "Custom" if you want to type your own script.</p>
     <div id="customWrap" style="display:none;margin-top:0.6rem;">
       <textarea id="customText" placeholder="Type your own announcement here…"></textarea>
     </div>
@@ -144,23 +147,35 @@ button.rec.active{background:#ff4848;color:#fff;border-color:#ff8a78;animation:p
 
 // ============================================================
 // MESSAGE TEMPLATES — each entry yields a string to read aloud.
-// Templates that take a station name interpolate it via the
-// stations dropdown; templates that don't ignore the argument.
+// text() receives a context object { station, platform }. The
+// `station` / `platform` flags say which dropdowns a template uses;
+// they drive the generated filename and could drive UI hints. A
+// template with neither flag ignores both fields.
 // ============================================================
 const TEMPLATES = {
-  'next-station':        { label: 'Next station',           text: s => `The next station is ${s}. Please mind the gap between the train and the platform when alighting.` },
-  'arriving':            { label: 'Arriving at',            text: s => `We are now approaching ${s}. Please prepare to alight.` },
-  'final-stop':          { label: 'Final stop',             text: s => `This is ${s}, where this train terminates. All change please, all change. Please take all your belongings with you when leaving the train.` },
-  'welcome':             { label: 'Welcome',                text: s => `Welcome aboard this Welsham Railway service to ${s}. We will shortly be on our way. Please ensure all luggage is stowed safely.` },
-  'doors-closing':       { label: 'Doors closing',          text: _ => `Stand clear of the doors. Doors are closing.` },
-  'doors-released':      { label: 'Doors released',         text: s => `Doors are now released at ${s}. Please take care when alighting.` },
-  'delay':               { label: 'Apology for delay',      text: _ => `We are sorry for the delay to this service, caused by signalling problems further down the line. Network Rail and Welsham Railway apologise for the inconvenience this is causing to your journey.` },
+  // On-train announcements --------------------------------------------------
+  'next-station':        { label: 'On train: next station',  station:true, text: c => `The next station is ${c.station}. Please mind the gap between the train and the platform when alighting.` },
+  'arriving':            { label: 'On train: arriving at',   station:true, text: c => `We are now approaching ${c.station}. Please prepare to alight.` },
+  'final-stop':          { label: 'On train: final stop',    station:true, text: c => `This is ${c.station}, where this train terminates. All change please, all change. Please take all your belongings with you when leaving the train.` },
+  'welcome':             { label: 'On train: welcome',       station:true, text: c => `Welcome aboard this Welsham Railway service to ${c.station}. We will shortly be on our way. Please ensure all luggage is stowed safely.` },
+  'doors-closing':       { label: 'On train: doors closing', text: _ => `Stand clear of the doors. Doors are closing.` },
+  'doors-released':      { label: 'On train: doors released', station:true, text: c => `Doors are now released at ${c.station}. Please take care when alighting.` },
+  'delay':               { label: 'On train: apology for delay', text: _ => `We are sorry for the delay to this service, caused by signalling problems further down the line. Network Rail and Welsham Railway apologise for the inconvenience this is causing to your journey.` },
   'security-belongings': { label: 'Security: belongings',   text: _ => `For your safety and security, please keep all personal belongings with you at all times. Please do not leave bags or other items unattended on the train or on the platform.` },
   'security-suspicious': { label: 'Security: suspicious',   text: _ => `If you see anything that looks suspicious, please report it to a member of staff or to the British Transport Police by texting six one zero one six. We see it, say it, sorted.` },
   'security-alarm':      { label: 'Security: alarm',        text: _ => `In an emergency, please use the passenger emergency alarm or contact a member of train staff. The emergency alarm should not be used unless absolutely necessary, as it will stop the train and delay your journey.` },
-  'next-this-is':        { label: 'This is / next is',      text: s => `This is ${s}. The next station is the next one on your service. Please change here for connections.` },
+  'next-this-is':        { label: 'On train: this is / next is', station:true, text: c => `This is ${c.station}. The next station is the next one on your service. Please change here for connections.` },
+  // Station / platform announcements (concourse + platform PA) --------------
+  'platform-arriving':    { label: 'Platform: next to arrive', station:true, platform:true, text: c => `The next train to arrive at platform ${c.platform} is the Welsham Railway service to ${c.station}. Please stand back from the platform edge.` },
+  'platform-standing':    { label: 'Platform: now standing',   station:true, platform:true, text: c => `The train now standing at platform ${c.platform} is the Welsham Railway service to ${c.station}. This train is ready to depart. Please stand clear of the doors.` },
+  'platform-approaching': { label: 'Platform: approaching',    station:true, platform:true, text: c => `The train now approaching platform ${c.platform} is the Welsham Railway service to ${c.station}. Please stand back from the platform edge.` },
+  'platform-delayed':     { label: 'Platform: delayed',        station:true, platform:true, text: c => `We are sorry to announce that the Welsham Railway service to ${c.station} from platform ${c.platform} is delayed by approximately ten minutes. We apologise for the delay to your journey.` },
+  'platform-cancelled':   { label: 'Platform: cancelled',      station:true, platform:true, text: c => `We are sorry to announce that the Welsham Railway service to ${c.station} from platform ${c.platform} has been cancelled. We apologise for the inconvenience this may cause to your journey.` },
+  'platform-alteration':  { label: 'Platform: alteration',     station:true, platform:true, text: c => `Attention please. The Welsham Railway service to ${c.station} will now depart from platform ${c.platform}. This is a platform alteration.` },
+  'platform-non-stop':    { label: 'Platform: non-stopping',   platform:true, text: c => `The train now approaching platform ${c.platform} does not stop here. Please stand well back from the platform edge as the train passes through.` },
   'custom':              { label: 'Custom — type below',    text: _ => '' },
 };
+const PLATFORM_COUNT = 6;
 
 // ============================================================
 // STATIONS — loaded from welsham-circle.json so the dropdown
@@ -188,6 +203,7 @@ async function loadStations(){
 const $ = id => document.getElementById(id);
 const typeEl = $('msgType');
 const stnEl = $('stationName');
+const platEl = $('platformNum');
 const scriptEl = $('scriptBox');
 const customWrap = $('customWrap');
 const customText = $('customText');
@@ -216,11 +232,17 @@ function populateStations(list){
 populateStations(stationList);
 loadStations().then(list => { stationList = list; populateStations(list); refreshScript(); });
 
+for (let i = 1; i <= PLATFORM_COUNT; i++){
+  const o = document.createElement('option');
+  o.value = String(i); o.textContent = String(i);
+  platEl.appendChild(o);
+}
+
 function currentScript(){
   const t = TEMPLATES[typeEl.value];
-  const station = stnEl.value || stationList[0];
+  const ctx = { station: stnEl.value || stationList[0], platform: platEl.value || '1' };
   if (typeEl.value === 'custom') return (customText.value || '').trim();
-  return t.text(station);
+  return t.text(ctx);
 }
 function refreshScript(){
   const text = currentScript();
@@ -229,6 +251,7 @@ function refreshScript(){
 }
 typeEl.addEventListener('change', refreshScript);
 stnEl.addEventListener('change', refreshScript);
+platEl.addEventListener('change', refreshScript);
 customText.addEventListener('input', refreshScript);
 refreshScript();
 
@@ -302,10 +325,12 @@ function saveRecording(){
 
 function filenameSlug(){
   const t = typeEl.value;
-  const usesStn = TEMPLATES[t].text.length > 0 && TEMPLATES[t].text('TEST').includes('TEST');
+  const tpl = TEMPLATES[t];
   const slug = (n) => String(n).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-  if (usesStn) return slug(t) + '-' + slug(stnEl.value || 'station');
-  return slug(t);
+  let name = slug(t);
+  if (tpl.platform) name += '-p' + slug(platEl.value || '1');
+  if (tpl.station) name += '-' + slug(stnEl.value || 'station');
+  return name;
 }
 
 let sessionItems = [];

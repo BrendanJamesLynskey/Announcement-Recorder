@@ -22,12 +22,22 @@ remembered between page loads.
 
 ## Messages
 
-Twelve templates are built in — next station, arriving, final stop, welcome,
-doors closing / released, apology for delay, three security announcements, and
-a free-text **Custom** option. Templates that mention a station name pull the
-station list from [`welsham-circle.json`](welsham-circle.json) so the dropdown
-always matches the bundled Welsham Circle route (it falls back to a hard-coded
-list if the file can't be fetched).
+Built-in templates come in three groups, plus a free-text **Custom** option:
+
+- **On train** — next station, arriving, final stop, welcome, doors
+  closing / released, apology for delay.
+- **Security** — belongings, suspicious items, emergency alarm.
+- **Platform** — station/concourse PA announcements: next train to arrive,
+  now standing, approaching, delayed, cancelled, platform alteration, and a
+  non-stopping-train warning. These read out a **platform number** (selected
+  from the Platform dropdown) alongside the destination, e.g. *"The next train
+  to arrive at platform 2 is the Welsham Railway service to Bankside."*
+
+Templates that mention a station pull the station list from
+[`welsham-circle.json`](welsham-circle.json) so the dropdown always matches the
+bundled Welsham Circle route (it falls back to a hard-coded list if the file
+can't be fetched). The Station and Platform dropdowns are only used by the
+templates that reference them.
 
 ## Recording
 
