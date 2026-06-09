@@ -107,6 +107,7 @@ button.rec.active{background:#ff4848;color:#fff;border-color:#ff8a78;animation:p
         <select id="micSelect"><option value="">Default microphone</option></select>
       </label>
       <button id="refreshMics" type="button">↻ Refresh</button>
+      <button id="testMicBtn" type="button">Test mic</button>
     </div>
     <div class="controls">
       <button id="recordBtn" class="rec">● Record</button>
@@ -232,6 +233,7 @@ const statusEl = $('status');
 const recordingsEl = $('recordings');
 const micSelect = $('micSelect');
 const refreshMics = $('refreshMics');
+const testMicBtn = $('testMicBtn');
 const meterWrap = $('meterWrap');
 const meterBar = $('meterBar');
 const meterLabel = $('meterLabel');
@@ -306,6 +308,7 @@ async function populateMics(){
 }
 micSelect.addEventListener('change', () => { selectedMicId = micSelect.value; });
 refreshMics.addEventListener('click', populateMics);
+testMicBtn.addEventListener('click', toggleMicTest);
 if (navigator.mediaDevices){
   populateMics();
   if (navigator.mediaDevices.addEventListener) navigator.mediaDevices.addEventListener('devicechange', populateMics);
@@ -340,6 +343,10 @@ function startMeter(stream){
     const Ctx = window.AudioContext || window.webkitAudioContext;
     if (!Ctx) return;
     audioCtx = new Ctx();
+    // Browsers create the context suspended until a user gesture resumes it;
+    // without this the analyser only ever reads silence and the meter looks
+    // dead even when the mic is working.
+    if (audioCtx.state === 'suspended') audioCtx.resume();
     const src = audioCtx.createMediaStreamSource(stream);
     analyser = audioCtx.createAnalyser();
     analyser.fftSize = 512;
@@ -369,11 +376,67 @@ function stopMeter(){
   analyser = null;
 }
 
-async function startRecording(){
+// Audio capture constraints, shared by recording and the mic test. autoGain
+// helps quiet USB headsets reach a usable level.
+function micConstraints(){
+  const c = { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
+  if (selectedMicId) c.deviceId = { exact: selectedMicId };
+  return c;
+}
+
+// Decode the finished recording and measure its real peak amplitude. This is
+// the definitive "did it actually capture sound?" check — independent of the
+// live meter and of the playback output device.
+async function analyseBlob(blob){
   try {
-    const audioConstraints = { echoCancellation: true, noiseSuppression: true };
-    if (selectedMicId) audioConstraints.deviceId = { exact: selectedMicId };
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return null;
+    const ac = new Ctx();
+    const audio = await ac.decodeAudioData(await blob.arrayBuffer());
+    let peak = 0;
+    for (let ch = 0; ch < audio.numberOfChannels; ch++){
+      const d = audio.getChannelData(ch);
+      for (let i = 0; i < d.length; i += 64){ const a = Math.abs(d[i]); if (a > peak) peak = a; }
+    }
+    try { ac.close(); } catch (e){}
+    return { duration: audio.duration, peak };
+  } catch (e){ console.warn('decode failed', e); return null; }
+}
+
+// ------------------------------------------------------------
+// Test mic — open the selected device and show the live meter WITHOUT
+// recording, so the user can confirm capture before they commit.
+// ------------------------------------------------------------
+let testStream = null;
+async function toggleMicTest(){
+  if (testStream){
+    stopMeter();
+    testStream.getTracks().forEach(t => t.stop());
+    testStream = null;
+    testMicBtn.textContent = 'Test mic';
+    setStatus('Mic test stopped', '');
+    return;
+  }
+  try {
+    testStream = await navigator.mediaDevices.getUserMedia({ audio: micConstraints() });
+    populateMics();
+    startMeter(testStream);
+    meterLabel.textContent = 'Testing mic — speak now; the bar should move. Press Stop test when done.';
+    testMicBtn.textContent = 'Stop test';
+    setStatus('Testing mic — watch the meter as you speak', 'rec');
+  } catch (e){
+    setStatus('Could not open the selected mic — pick another or hit Refresh', 'err');
+    console.warn(e);
+  }
+}
+function stopMicTest(){
+  if (testStream){ stopMeter(); testStream.getTracks().forEach(t => t.stop()); testStream = null; testMicBtn.textContent = 'Test mic'; }
+}
+
+async function startRecording(){
+  stopMicTest();
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: micConstraints() });
     // Now that permission is granted, device labels are available — refresh
     // the list so the user can see and confirm which mic is in use.
     populateMics();
@@ -398,12 +461,18 @@ async function startRecording(){
       playBtn.disabled = false;
       saveBtn.disabled = false;
       const kB = (recordedBlob.size / 1024).toFixed(1);
-      if (recordedBlob.size < 1024 && peakLevel < 4){
-        setStatus(`Recorded ${secs.toFixed(1)}s but almost no sound — check the mic is selected`, 'err');
-      } else {
-        setStatus(`Recorded ${secs.toFixed(1)}s / ${kB} kB — press play below to preview`, 'ok');
-      }
+      setStatus(`Recorded ${secs.toFixed(1)}s / ${kB} kB — checking the audio…`, 'ok');
       mediaRecorder.stream.getTracks().forEach(t => t.stop());
+      // Decode the file and report whether it actually contains sound.
+      analyseBlob(recordedBlob).then(info => {
+        if (!info){ setStatus(`Recorded ${secs.toFixed(1)}s / ${kB} kB — press play below to preview`, 'ok'); return; }
+        const dur = isFinite(info.duration) && info.duration > 0 ? info.duration : secs;
+        if (info.peak < 0.01){
+          setStatus(`Recorded ${dur.toFixed(1)}s but the file is SILENT — the mic isn't capturing. Use Test mic, then pick the right device.`, 'err');
+        } else {
+          setStatus(`Recorded ${dur.toFixed(1)}s — sound captured OK (peak ${Math.round(info.peak * 100)}%). Press play below to preview.`, 'ok');
+        }
+      });
     };
     player.style.display = 'none';
     player.removeAttribute('src');

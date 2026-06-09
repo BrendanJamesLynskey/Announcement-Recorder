@@ -54,13 +54,21 @@ which is often the computer's built-in mic rather than the headset. Device
 names only appear once microphone permission has been granted, so record once
 (or press **Refresh**) to populate the list, then pick your headset.
 
-**Checking it captured:** while recording, a live **input level meter** fills
-as the mic picks up sound — watch it move as you speak to confirm the right
-device is being captured. When you stop, the clip loads into an inline audio
-**player** (with native play/scrub controls and a duration readout) so you can
-listen back before saving; the **Preview** button plays the same clip. If a
-recording comes back silent, the status flags it so you can re-check the mic
-selection.
+**Checking it captured:** press **Test mic** to open the selected device and
+watch the live **input level meter** move as you speak — this confirms the
+headset is being captured *before* you record. While recording, the same meter
+runs. When you stop, the recording is **decoded and checked**, and the status
+reports the verdict: either *"sound captured OK (peak NN%)"* or *"the file is
+SILENT — the mic isn't capturing"*. The clip also loads into an inline audio
+**player** (native play/scrub controls) so you can listen back; the **Preview**
+button plays the same clip.
+
+If the status says **sound captured OK** but playback is silent, the recording
+is fine and the problem is your **playback output** — the page plays through the
+system's default output device, so check that the headset (or speakers) is
+selected for output and the volume is up. If the status says **SILENT**, the
+mic genuinely isn't feeding audio: check the device is not muted at the OS
+level and that the correct one is chosen in the Microphone dropdown.
 
 ## Repo
 
